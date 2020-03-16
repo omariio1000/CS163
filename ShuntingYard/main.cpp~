@@ -1,0 +1,225 @@
+/* Author: Omar Nassar
+ * Date: 12/5/2019
+ * This is a program that can translate infix to postfix and create an expression tree.
+ * This can then be outputted as either infix, prefix, or postfix.
+ */
+
+#include <iostream>
+#include <cstring>
+#include <ctype.h>
+#include <stack>
+#include <queue>
+#include "node.h"
+
+
+using namespace std;
+
+void parseInput(vector<char*> &parsedInput, char input[100]);
+void printVector(vector<char*>);
+void intopost(vector<char*>& parsedInput, queue<char*>& Queue);
+void printQueue(queue<char*> Queue);
+int precedence(char* op);
+bool isOperand(char* op);
+void constructTree(stack<Node*>& Tree, queue <char*>& Queue);
+void infix(Node* Root);
+void postfix(Node* Root);
+void prefix(Node* Root);
+
+int main() {
+  char input[100];
+  vector<char*> parsedInput;
+  queue<char*> Queue;
+  cout << "Enter an infix expression" << endl << endl;
+  cin.get(input, 100);
+  cin.clear();
+  cin.ignore(1000000, '\n');
+  parseInput(parsedInput, input);
+  intopost(parsedInput, Queue);
+  //printQueue(Queue);
+  stack <Node*> ExpressionTree;
+  constructTree(ExpressionTree, Queue);
+  
+  char method[8];
+  while (true) {
+    cout << endl << "What way would you like to output this expression? (Infix, Prefix, Postfix)" << endl << endl;
+    cin.get(method, 8);
+    cin.clear();
+    cin.ignore(1000000, '\n');
+    if (strcmp(method, "Infix") == 0 || strcmp(method, "infix") == 0) {
+      cout << endl; // << "Infix" << endl;
+      infix(ExpressionTree.top());
+      break;
+    }
+    else if (strcmp(method, "Prefix") == 0 || strcmp(method, "prefix") == 0) {
+      cout << endl; // << "Prefix" << endl;
+      prefix(ExpressionTree.top());
+      break;
+    }
+    else if (strcmp(method, "Postfix") == 0 || strcmp(method, "postfix") == 0) {
+      cout << endl; // << "Postfix" << endl;
+      postfix(ExpressionTree.top());
+      break;
+    }
+    else {
+      cout << endl << "Invalid Input" << endl;
+    }
+  }
+  
+  return 0;
+}
+
+void parseInput(vector<char*> &parsedInput, char input[100]) { //store the input in a vector so won't have to deal with spaces later
+  //cout << "works" << endl;
+  int pointers[2];
+  pointers[0] = -1;
+  for (int i = 0; i < strlen(input); i++) {//add everything that's not a space to a vector
+    if (input[i] == ' ') {
+      pointers[1] = i; //set the second pointer to the space
+      int j = 0;
+      char* newArray = new char[pointers[1] - pointers[0]];
+      for (int i = pointers[0] + 1; i < pointers[1]; i++) {
+	newArray[j] = input[i];
+	j = j + 1;
+      }
+      newArray[j] = '\0'; //add a null character to the end of the character(s)
+      parsedInput.push_back(newArray); //push the character(s) to the vector without spaces
+      pointers[0] = pointers[1]; //make the first pointer the space to find the next one
+    }
+  }
+  char* newArray = new char[strlen(input) - pointers[0]];
+  int j = 0;
+  for (int i = pointers[0] + 1; i < strlen(input); i++) {//get the last character
+    newArray[j] = input[i];
+    j = j + 1;
+  }
+  newArray[j] = '\0';
+  parsedInput.push_back(newArray);
+  //printVector(parsedInput);
+}
+
+void printVector(vector<char*> parsedInput) {
+  for (int i = 0; i < parsedInput.size(); i ++) {
+    cout << parsedInput[i];
+  }
+  cout << endl;
+}
+
+void printQueue(queue<char*> Queue) {
+  cout << endl;
+  while (!Queue.empty()) {
+    cout << Queue.front() << " ";
+    Queue.pop();
+  }
+  cout << endl;
+}
+
+void intopost(vector<char*>& parsedInput, queue<char*>& Queue) { //Shunting Yard algorithm from wikipedia
+  stack<char*> Stack;
+  int i = 0;
+  while (i < parsedInput.size()) {
+    if (strlen(parsedInput[i]) != 1 || isOperand(parsedInput[i])) { //operands go to the queue
+      Queue.push(parsedInput[i]);
+    }
+    else if (strcmp(parsedInput[i], "(") == 0) { //left parenthesis goes to the stack
+      Stack.push(parsedInput[i]);
+    }
+    else if (strcmp(parsedInput[i], ")") == 0) { //right parenthesis empty the stack into the queue until a left parenthesis is found
+      while (strcmp(Stack.top(), "(") != 0) {
+	Queue.push(Stack.top());
+	Stack.pop();
+	if (Stack.empty()) { //if no left parenthesis is found then the parenthesis are mismatched
+	  break;
+	}
+      }
+      Stack.pop();
+    }
+    else {
+      if (!Stack.empty()) {
+	while ( (precedence(Stack.top()) > precedence(parsedInput[i]) || ( (precedence(Stack.top()) == precedence(parsedInput[i])) && (strcmp(Stack.top(),"^") != 0) ) ) && (strcmp(Stack.top(),"(") != 0)){ //operator goes to the stack with higher precedence operators to the left
+	  Queue.push(Stack.top());
+	  Stack.pop();
+	  if (Stack.empty()) {
+	    break;
+	  }
+	}
+      }
+      Stack.push(parsedInput[i]);
+    }
+    i = i + 1;
+  }
+  while (!Stack.empty()){ //if there's anything left push it to the queue
+    Queue.push(Stack.top());
+    Stack.pop();
+  }
+}
+
+int precedence(char* op) { //determines which operator has higher precedence
+  if (strcmp(op, "^") == 0) {
+    return 3;
+  }
+  else if (strcmp(op, "*") == 0 || strcmp(op, "/") == 0) {
+    return 2;
+  }
+  else if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0) {
+    return 1;
+  }
+  return 0;
+}
+
+bool isOperand(char* op) { //determines whether something is alphanumeric
+  if (isalnum(op[0])) {
+    return true;
+  }
+  return false;
+}
+
+void constructTree(stack<Node*>& Tree, queue<char*>& Queue) {
+  while (!Queue.empty()) {
+    if (isOperand(Queue.front())) { //if the front of the queue is a number/variable
+      Node* newNode = new Node();
+      newNode -> setValue(Queue.front()); //make a node with that value
+      Queue.pop();
+      Tree.push(newNode); //add the node to the stack (tree)
+    }
+    else {
+      Node* newNode = new Node();
+      newNode -> setValue(Queue.front()); //set the node value to the operator
+      Queue.pop();
+      newNode -> setRight(Tree.top()); //set the right node to the top of the stack (last thing added)
+      Tree.pop();
+      newNode -> setLeft(Tree.top()); //set the left node to the second thing in the stack
+      Tree.pop();
+      Tree.push(newNode); //add the node to the stack
+    }
+  }
+}
+
+void infix(Node* Root) {
+  if (Root != NULL) { //if the node exists and has a value
+    if (!isOperand(Root -> getValue())) { //if the value is an operator
+      cout << "( ";
+    }
+    infix(Root -> getLeft()); //call this function with the value to the left
+    cout << Root -> getValue() << " "; 
+    infix(Root -> getRight()); //call this function with the value to the right
+    if (!isOperand(Root -> getValue())) { //if the value is an operator and this is th
+      cout << ") ";
+    }   
+  }
+}
+
+void postfix(Node* Root) {
+  if (Root != NULL) {
+    postfix(Root -> getLeft());
+    postfix(Root -> getRight());
+    cout << Root -> getValue() << " ";
+  }
+}
+
+void prefix(Node* Root) {
+  if (Root != NULL) {
+    cout << Root -> getValue() << " ";
+    prefix(Root -> getLeft());
+    prefix(Root -> getRight());				  
+  }
+}
